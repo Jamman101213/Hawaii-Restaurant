@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hawaii Restaurant - Staff Order Input</title>
+  <script type="module">
+    // Firebase setup
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyABR8-25nvqFpn7Nf65HK8KjeMTDdYcInk",
+      authDomain: "hawaii-restaurant.firebaseapp.com",
+      projectId: "hawaii-restaurant",
+      storageBucket: "hawaii-restaurant.appspot.com",
+      messagingSenderId: "562616646699",
+      appId: "1:562616646699:web:1bf64187a6a696089b3e6e",
+      measurementId: "G-8WSHRWGGMR"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Submit order
+    window.submitOrder = async function () {
+      const name = document.getElementById("username").value.trim();
+      const order = document.getElementById("order").value.trim();
+
+      if (!name || !order) {
+        alert("Please fill in both fields.");
+        return;
+      }
+
+      try {
+        await setDoc(doc(db, "Orders", name), {
+          items: order
+        });
+        alert("Order submitted for " + name);
+        document.getElementById("order-form").reset();
+      } catch (error) {
+        console.error("Error writing document:", error);
+        alert("Failed to submit order.");
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      width: 400px;
+      max-width: 90%;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    input, textarea, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #28a745;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #218838;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Enter Customer Order</h1>
+    <form id="order-form" onsubmit="event.preventDefault(); submitOrder();">
+      <input id="username" type="text" placeholder="Customer name (e.g. Jameson)" required />
+      <textarea id="order" rows="4" placeholder="What did they order?" required></textarea>
+      <button type="submit">Submit Order</button>
+    </form>
+  </div>
+</body>
+</html>
