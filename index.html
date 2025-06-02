@@ -2,19 +2,20 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Hawaii Restaurant - Staff Order Input & Food Manager</title>
+  <title>Hawaii Restaurant - Staff Panel</title>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
       getFirestore,
-      doc,
-      setDoc,
-      getDocs,
       collection,
-      deleteDoc,
+      doc,
       onSnapshot,
+      getDoc,
+      setDoc,
+      deleteDoc,
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyABR8-25nvqFpn7Nf65HK8KjeMTDdYcInk",
       authDomain: "hawaii-restaurant.firebaseapp.com",
@@ -28,49 +29,99 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Submit order
-    window.submitOrder = async function () {
-      const name = document.getElementById("username").value.trim();
-      const order = document.getElementById("order").value.trim();
+    // References to collections
+    const waitingRef = collection(db, "UserWaiting");
+    const ordersRef = collection(db, "Orders");
+    const foodsRef = collection(db, "Foods");
 
-      if (!name || !order) {
-        alert("Please fill in both fields.");
+    // UI Elements
+    const customersContainer = document.getElementById("customers");
+    const selectedCustomerTitle = document.getElementById("selected-customer");
+    const orderTextarea = document.getElementById("order");
+    const submitOrderBtn = document.getElementById("submit-order");
+    const foodsList = document.getElementById("foods-list");
+    const newFoodInput = document.getElementById("new-food-name");
+    const addFoodBtn = document.getElementById("add-food-btn");
+
+    let selectedCustomer = null;
+
+    // Load and listen for waiting customers
+    onSnapshot(waitingRef, (snapshot) => {
+      customersContainer.innerHTML = "";
+      if (snapshot.empty) {
+        customersContainer.textContent = "No customers waiting.";
+        clearSelectedCustomer();
         return;
       }
+      snapshot.docs.forEach((doc) => {
+        const name = doc.data().name;
+        const btn = document.createElement("button");
+        btn.textContent = name;
+        btn.className = "customer-btn";
+        btn.onclick = () => selectCustomer(name);
+        customersContainer.appendChild(btn);
+      });
+    });
+
+    // Select customer and load their order
+    async function selectCustomer(name) {
+      selectedCustomer = name;
+      selectedCustomerTitle.textContent = `Order for: ${name}`;
+      orderTextarea.value = "";
+      submitOrderBtn.disabled = false;
+
+      // Load existing order if any
+      const orderDoc = await getDoc(doc(db, "Orders", name));
+      if (orderDoc.exists()) {
+        orderTextarea.value = orderDoc.data().items || "";
+      } else {
+        orderTextarea.value = "";
+      }
+    }
+
+    // Clear selection UI
+    function clearSelectedCustomer() {
+      selectedCustomer = null;
+      selectedCustomerTitle.textContent = "Select a customer above";
+      orderTextarea.value = "";
+      submitOrderBtn.disabled = true;
+    }
+
+    // Submit or update order
+    submitOrderBtn.onclick = async () => {
+      if (!selectedCustomer) return alert("Select a customer first");
+      const orderText = orderTextarea.value.trim();
+      if (!orderText) return alert("Enter order details");
 
       try {
-        await setDoc(doc(db, "Orders", name), {
-          items: order,
+        await setDoc(doc(db, "Orders", selectedCustomer), {
+          items: orderText,
         });
-        alert("Order submitted for " + name);
-        document.getElementById("order-form").reset();
-      } catch (error) {
-        console.error("Error writing document:", error);
-        alert("Failed to submit order.");
+        alert(`Order saved for ${selectedCustomer}`);
+      } catch (e) {
+        alert("Failed to save order: " + e.message);
       }
     };
 
-    // Food manager code
-    const foodsList = document.getElementById("foods-list");
+    // Food menu manager
 
-    // Load and listen to foods collection changes in realtime
-    const foodsCollection = collection(db, "Foods");
-
+    // Render foods list with remove buttons
     function renderFoods(docs) {
       foodsList.innerHTML = "";
+      if (docs.length === 0) {
+        foodsList.innerHTML = "<li>No foods in menu.</li>";
+        return;
+      }
       docs.forEach((doc) => {
         const foodName = doc.data().name;
         const li = document.createElement("li");
         li.textContent = foodName;
 
-        // Remove button
         const removeBtn = document.createElement("button");
         removeBtn.textContent = "Remove";
-        removeBtn.style.marginLeft = "10px";
+        removeBtn.className = "remove-food-btn";
         removeBtn.onclick = async () => {
-          if (
-            confirm(`Remove food "${foodName}" from menu?`)
-          ) {
+          if (confirm(`Remove "${foodName}" from menu?`)) {
             await deleteDoc(doc.ref);
           }
         };
@@ -78,37 +129,29 @@
         li.appendChild(removeBtn);
         foodsList.appendChild(li);
       });
-
-      if (docs.length === 0) {
-        foodsList.innerHTML = "<li>No foods found.</li>";
-      }
     }
 
-    // Initial fetch & realtime update
-    onSnapshot(foodsCollection, (snapshot) => {
+    // Listen for food collection changes realtime
+    onSnapshot(foodsRef, (snapshot) => {
       renderFoods(snapshot.docs);
     });
 
-    // Add new food
-    window.addFood = async function () {
-      const newFoodName = document.getElementById("new-food-name").value.trim();
-      if (!newFoodName) {
-        alert("Enter a food name");
-        return;
-      }
+    // Add new food handler
+    addFoodBtn.onclick = async () => {
+      const newFood = newFoodInput.value.trim();
+      if (!newFood) return alert("Enter a food name");
 
       try {
-        // Save food doc with id = food name (safe because food name is simple text)
-        await setDoc(doc(db, "Foods", newFoodName), {
-          name: newFoodName,
-        });
-        alert(`Added food: ${newFoodName}`);
-        document.getElementById("new-food-name").value = "";
-      } catch (error) {
-        console.error("Error adding food:", error);
-        alert("Failed to add food.");
+        await setDoc(doc(db, "Foods", newFood), { name: newFood });
+        newFoodInput.value = "";
+        alert(`Added food: ${newFood}`);
+      } catch (e) {
+        alert("Failed to add food: " + e.message);
       }
     };
+
+    // Disable submit order button at first
+    clearSelectedCustomer();
   </script>
 
   <style>
@@ -116,14 +159,12 @@
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       background: #f5f5f5;
       margin: 0;
-      padding: 0;
+      padding: 20px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
       min-height: 100vh;
       gap: 30px;
-      padding: 30px 10px;
     }
 
     .container {
@@ -131,7 +172,7 @@
       padding: 30px;
       border-radius: 16px;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-      max-width: 500px;
+      max-width: 600px;
       width: 100%;
     }
 
@@ -140,86 +181,143 @@
       margin-bottom: 20px;
     }
 
-    input,
-    textarea,
-    button {
+    #customers {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 15px;
+    }
+
+    .customer-btn {
+      background-color: #007bff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 12px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+      user-select: none;
+    }
+
+    .customer-btn:hover {
+      background-color: #0056b3;
+    }
+
+    #selected-customer {
+      font-weight: 700;
+      font-size: 1.3em;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    textarea {
       width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      margin-bottom: 20px;
-      border: 1px solid #ccc;
+      height: 100px;
       border-radius: 10px;
+      border: 1px solid #ccc;
+      padding: 12px;
       font-size: 16px;
+      resize: vertical;
     }
 
     button {
       background-color: #28a745;
       color: white;
       font-weight: bold;
+      border: none;
+      padding: 14px;
+      width: 100%;
+      border-radius: 12px;
+      font-size: 16px;
       cursor: pointer;
       transition: background 0.3s;
-      border: none;
+      margin-top: 10px;
     }
 
-    button:hover {
+    button:hover:not(:disabled) {
       background-color: #218838;
     }
 
-    ul#foods-list {
+    button:disabled {
+      background-color: #a6d8a8;
+      cursor: default;
+    }
+
+    /* Food menu styles */
+
+    #food-manager {
+      margin-top: 40px;
+    }
+
+    #food-manager h2 {
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    #new-food-name {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+    }
+
+    #foods-list {
       list-style: none;
       padding-left: 0;
       font-size: 18px;
+      max-height: 200px;
+      overflow-y: auto;
+      border-top: 1px solid #ddd;
     }
 
-    ul#foods-list li {
+    #foods-list li {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 0;
-      border-bottom: 1px solid #ddd;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
     }
 
-    ul#foods-list li button {
+    .remove-food-btn {
       background-color: #dc3545;
-      font-weight: normal;
-      padding: 5px 12px;
+      border: none;
+      color: white;
       font-size: 14px;
-      border-radius: 8px;
+      padding: 5px 12px;
+      border-radius: 10px;
+      cursor: pointer;
       transition: background 0.3s;
     }
 
-    ul#foods-list li button:hover {
+    .remove-food-btn:hover {
       background-color: #b02a37;
     }
   </style>
 </head>
 <body>
-  <div class="container" style="max-width: 400px;">
-    <h1>Enter Customer Order</h1>
-    <form id="order-form" onsubmit="event.preventDefault(); submitOrder();">
-      <input
-        id="username"
-        type="text"
-        placeholder="Customer name (e.g. Jameson)"
-        required
-      />
-      <textarea
-        id="order"
-        rows="4"
-        placeholder="What did they order?"
-        required
-      ></textarea>
-      <button type="submit">Submit Order</button>
-    </form>
+  <div class="container">
+    <h1>Customers Waiting</h1>
+    <div id="customers">
+      Loading customers...
+    </div>
+
+    <div id="order-section">
+      <div id="selected-customer">Select a customer above</div>
+      <textarea id="order" placeholder="Enter or update the order here..." disabled></textarea>
+      <button id="submit-order" disabled>Save Order</button>
+    </div>
   </div>
 
-  <div class="container">
-    <h1>Food Menu Manager</h1>
+  <div class="container" id="food-manager">
+    <h2>Food Menu Manager</h2>
     <input id="new-food-name" type="text" placeholder="New food name" />
-    <button onclick="addFood()">Add Food</button>
-
+    <button id="add-food-btn">Add Food</button>
     <ul id="foods-list">
-      <li>Loading foods...</li>
+      Loading foods...
     </ul>
   </div>
 </body>
