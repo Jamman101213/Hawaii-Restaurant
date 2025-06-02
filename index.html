@@ -1,324 +1,294 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Hawaii Restaurant - Staff Panel</title>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import {
-      getFirestore,
-      collection,
-      doc,
-      onSnapshot,
-      getDoc,
-      setDoc,
-      deleteDoc,
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    // Firebase config
-    const firebaseConfig = {
-      apiKey: "AIzaSyABR8-25nvqFpn7Nf65HK8KjeMTDdYcInk",
-      authDomain: "hawaii-restaurant.firebaseapp.com",
-      projectId: "hawaii-restaurant",
-      storageBucket: "hawaii-restaurant.appspot.com",
-      messagingSenderId: "562616646699",
-      appId: "1:562616646699:web:1bf64187a6a696089b3e6e",
-      measurementId: "G-8WSHRWGGMR",
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // References to collections
-    const waitingRef = collection(db, "UserWaiting");
-    const ordersRef = collection(db, "Orders");
-    const foodsRef = collection(db, "Foods");
-
-    // UI Elements
-    const customersContainer = document.getElementById("customers");
-    const selectedCustomerTitle = document.getElementById("selected-customer");
-    const orderTextarea = document.getElementById("order");
-    const submitOrderBtn = document.getElementById("submit-order");
-    const foodsList = document.getElementById("foods-list");
-    const newFoodInput = document.getElementById("new-food-name");
-    const addFoodBtn = document.getElementById("add-food-btn");
-
-    let selectedCustomer = null;
-
-    // Load and listen for waiting customers
-    onSnapshot(waitingRef, (snapshot) => {
-      customersContainer.innerHTML = "";
-      if (snapshot.empty) {
-        customersContainer.textContent = "No customers waiting.";
-        clearSelectedCustomer();
-        return;
-      }
-      snapshot.docs.forEach((doc) => {
-        const name = doc.data().name;
-        const btn = document.createElement("button");
-        btn.textContent = name;
-        btn.className = "customer-btn";
-        btn.onclick = () => selectCustomer(name);
-        customersContainer.appendChild(btn);
-      });
-    });
-
-    // Select customer and load their order
-    async function selectCustomer(name) {
-      selectedCustomer = name;
-      selectedCustomerTitle.textContent = `Order for: ${name}`;
-      orderTextarea.value = "";
-      submitOrderBtn.disabled = false;
-
-      // Load existing order if any
-      const orderDoc = await getDoc(doc(db, "Orders", name));
-      if (orderDoc.exists()) {
-        orderTextarea.value = orderDoc.data().items || "";
-      } else {
-        orderTextarea.value = "";
-      }
-    }
-
-    // Clear selection UI
-    function clearSelectedCustomer() {
-      selectedCustomer = null;
-      selectedCustomerTitle.textContent = "Select a customer above";
-      orderTextarea.value = "";
-      submitOrderBtn.disabled = true;
-    }
-
-    // Submit or update order
-    submitOrderBtn.onclick = async () => {
-      if (!selectedCustomer) return alert("Select a customer first");
-      const orderText = orderTextarea.value.trim();
-      if (!orderText) return alert("Enter order details");
-
-      try {
-        await setDoc(doc(db, "Orders", selectedCustomer), {
-          items: orderText,
-        });
-        alert(`Order saved for ${selectedCustomer}`);
-      } catch (e) {
-        alert("Failed to save order: " + e.message);
-      }
-    };
-
-    // Food menu manager
-
-    // Render foods list with remove buttons
-    function renderFoods(docs) {
-      foodsList.innerHTML = "";
-      if (docs.length === 0) {
-        foodsList.innerHTML = "<li>No foods in menu.</li>";
-        return;
-      }
-      docs.forEach((doc) => {
-        const foodName = doc.data().name;
-        const li = document.createElement("li");
-        li.textContent = foodName;
-
-        const removeBtn = document.createElement("button");
-        removeBtn.textContent = "Remove";
-        removeBtn.className = "remove-food-btn";
-        removeBtn.onclick = async () => {
-          if (confirm(`Remove "${foodName}" from menu?`)) {
-            await deleteDoc(doc.ref);
-          }
-        };
-
-        li.appendChild(removeBtn);
-        foodsList.appendChild(li);
-      });
-    }
-
-    // Listen for food collection changes realtime
-    onSnapshot(foodsRef, (snapshot) => {
-      renderFoods(snapshot.docs);
-    });
-
-    // Add new food handler
-    addFoodBtn.onclick = async () => {
-      const newFood = newFoodInput.value.trim();
-      if (!newFood) return alert("Enter a food name");
-
-      try {
-        await setDoc(doc(db, "Foods", newFood), { name: newFood });
-        newFoodInput.value = "";
-        alert(`Added food: ${newFood}`);
-      } catch (e) {
-        alert("Failed to add food: " + e.message);
-      }
-    };
-
-    // Disable submit order button at first
-    clearSelectedCustomer();
-  </script>
-
-  <style>
-    body {
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background: #f5f5f5;
-      margin: 0;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      gap: 30px;
-    }
-
-    .container {
-      background: white;
-      padding: 30px;
-      border-radius: 16px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-      max-width: 600px;
-      width: 100%;
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    #customers {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      margin-bottom: 15px;
-    }
-
-    .customer-btn {
-      background-color: #007bff;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 12px;
-      color: white;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.3s;
-      user-select: none;
-    }
-
-    .customer-btn:hover {
-      background-color: #0056b3;
-    }
-
-    #selected-customer {
-      font-weight: 700;
-      font-size: 1.3em;
-      text-align: center;
-      margin-bottom: 10px;
-    }
-
-    textarea {
-      width: 100%;
-      height: 100px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-      padding: 12px;
-      font-size: 16px;
-      resize: vertical;
-    }
-
-    button {
-      background-color: #28a745;
-      color: white;
-      font-weight: bold;
-      border: none;
-      padding: 14px;
-      width: 100%;
-      border-radius: 12px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: background 0.3s;
-      margin-top: 10px;
-    }
-
-    button:hover:not(:disabled) {
-      background-color: #218838;
-    }
-
-    button:disabled {
-      background-color: #a6d8a8;
-      cursor: default;
-    }
-
-    /* Food menu styles */
-
-    #food-manager {
-      margin-top: 40px;
-    }
-
-    #food-manager h2 {
-      margin-bottom: 15px;
-      text-align: center;
-    }
-
-    #new-food-name {
-      width: 100%;
-      padding: 12px;
-      font-size: 16px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-      margin-bottom: 10px;
-    }
-
-    #foods-list {
-      list-style: none;
-      padding-left: 0;
-      font-size: 18px;
-      max-height: 200px;
-      overflow-y: auto;
-      border-top: 1px solid #ddd;
-    }
-
-    #foods-list li {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid #eee;
-    }
-
-    .remove-food-btn {
-      background-color: #dc3545;
-      border: none;
-      color: white;
-      font-size: 14px;
-      padding: 5px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-
-    .remove-food-btn:hover {
-      background-color: #b02a37;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Worker Order Page</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 15px;
+    background: #f9f9f9;
+    color: #333;
+  }
+  #customers-list button {
+    margin: 4px;
+    padding: 8px 12px;
+    background-color: #007bff;
+    border: none;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  #customers-list button.selected {
+    background-color: #004a99;
+  }
+  #order-area {
+    margin-top: 15px;
+  }
+  #order-textarea {
+    width: 100%;
+    height: 150px;
+    font-family: monospace;
+    font-size: 14px;
+    margin-top: 8px;
+    padding: 8px;
+  }
+  #save-order-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+  #save-order-btn {
+    margin-top: 8px;
+    padding: 10px 20px;
+    background-color: #28a745;
+    border: none;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  #foods-area {
+    margin-top: 30px;
+    padding-top: 10px;
+    border-top: 2px solid #ddd;
+  }
+  #foods-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 10px;
+  }
+  #foods-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    margin-bottom: 6px;
+    padding: 8px 12px;
+    border-radius: 5px;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+  }
+  #foods-list li span {
+    cursor: pointer;
+  }
+  .remove-food-btn {
+    background-color: #dc3545;
+    border: none;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  #add-food-btn {
+    margin-left: 10px;
+    padding: 8px 14px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  input[type="text"], input[type="number"] {
+    padding: 7px 10px;
+    font-size: 14px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Customers Waiting</h1>
-    <div id="customers">
-      Loading customers...
-    </div>
+  <h2>Customers Waiting</h2>
+  <div id="customers-list">Loading customers...</div>
 
-    <div id="order-section">
-      <div id="selected-customer">Select a customer above</div>
-      <textarea id="order" placeholder="Enter or update the order here..." disabled></textarea>
-      <button id="submit-order" disabled>Save Order</button>
-    </div>
+  <div id="order-area">
+    <h3>Order:</h3>
+    <textarea id="order-textarea" placeholder="Select a customer to see their order" disabled></textarea><br />
+    <button id="save-order-btn" disabled>Save Order</button>
   </div>
 
-  <div class="container" id="food-manager">
+  <div id="foods-area">
     <h2>Food Menu Manager</h2>
-    <input id="new-food-name" type="text" placeholder="New food name" />
+    <input id="new-food-name" type="text" placeholder="New food name" style="width: 60%;" />
+    <input id="new-food-price" type="number" min="0" step="0.01" placeholder="Price" style="width: 35%; margin-left:5px;" />
     <button id="add-food-btn">Add Food</button>
-    <ul id="foods-list">
-      Loading foods...
-    </ul>
+
+    <ul id="foods-list">Loading foods...</ul>
   </div>
+
+<script type="module">
+// Firebase imports
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  onSnapshot,
+  deleteDoc,
+  updateDoc,
+} from "https://www.gstatic.com/firebasejs/10.3.0/firebase-firestore.js";
+
+// Your Firebase config here
+const firebaseConfig = {
+  apiKey: "AIzaSyABR8-25nvqFpn7Nf65HK8KjeMTDdYcInk",
+  authDomain: "hawaii-restaurant.firebaseapp.com",
+  projectId: "hawaii-restaurant",
+  storageBucket: "hawaii-restaurant.firebasestorage.app",
+  messagingSenderId: "562616646699",
+  appId: "1:562616646699:web:1bf64187a6a696089b3e6e",
+  measurementId: "G-8WSHRWGGMR"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const customersList = document.getElementById("customers-list");
+const orderTextarea = document.getElementById("order-textarea");
+const saveOrderBtn = document.getElementById("save-order-btn");
+
+const foodsList = document.getElementById("foods-list");
+const newFoodNameInput = document.getElementById("new-food-name");
+const newFoodPriceInput = document.getElementById("new-food-price");
+const addFoodBtn = document.getElementById("add-food-btn");
+
+let selectedCustomer = null;  // store customer doc ref
+let selectedCustomerId = null; // store customer doc id
+
+// Load customers waiting from Firebase and listen for realtime updates
+const customersCol = collection(db, "UserWaiting");
+onSnapshot(customersCol, (snapshot) => {
+  customersList.innerHTML = "";
+  if (snapshot.empty) {
+    customersList.innerHTML = "No customers waiting.";
+    clearOrderSelection();
+    return;
+  }
+  snapshot.forEach((docSnap) => {
+    const custName = docSnap.data().name;
+    const btn = document.createElement("button");
+    btn.textContent = custName;
+    btn.onclick = () => selectCustomer(docSnap);
+    btn.className = (docSnap.id === selectedCustomerId) ? "selected" : "";
+    customersList.appendChild(btn);
+  });
+  // If selected customer was removed, clear selection
+  if (selectedCustomerId && !snapshot.docs.find(doc => doc.id === selectedCustomerId)) {
+    clearOrderSelection();
+  }
+});
+
+// Select a customer to show their order
+async function selectCustomer(docSnap) {
+  selectedCustomer = docSnap.ref;
+  selectedCustomerId = docSnap.id;
+
+  // Highlight selected button
+  Array.from(customersList.children).forEach(btn => {
+    btn.classList.toggle("selected", btn.textContent === docSnap.data().name);
+  });
+
+  // Enable order textarea & load order
+  orderTextarea.disabled = false;
+  saveOrderBtn.disabled = false;
+
+  // Load order from Firebase
+  const orderText = docSnap.data().order || "";
+  orderTextarea.value = orderText;
+}
+
+// Save order back to Firebase
+saveOrderBtn.onclick = async () => {
+  if (!selectedCustomer) return alert("Select a customer first.");
+  const newOrder = orderTextarea.value.trim();
+  try {
+    await updateDoc(selectedCustomer, { order: newOrder });
+    alert("Order saved!");
+  } catch (e) {
+    alert("Failed to save order: " + e.message);
+  }
+};
+
+// Clear order area and disable controls
+function clearOrderSelection() {
+  selectedCustomer = null;
+  selectedCustomerId = null;
+  orderTextarea.value = "";
+  orderTextarea.disabled = true;
+  saveOrderBtn.disabled = true;
+  // Remove selected highlight
+  Array.from(customersList.children).forEach(btn => btn.classList.remove("selected"));
+}
+
+// Load foods and listen realtime updates
+const foodsCol = collection(db, "Foods");
+onSnapshot(foodsCol, (snapshot) => {
+  renderFoods(snapshot.docs);
+});
+
+function renderFoods(docs) {
+  foodsList.innerHTML = "";
+  if (docs.length === 0) {
+    foodsList.innerHTML = "<li>No foods in menu.</li>";
+    return;
+  }
+  docs.forEach((docSnap) => {
+    const foodName = docSnap.data().name;
+    const foodPrice = docSnap.data().price.toFixed(2);
+    const li = document.createElement("li");
+
+    // Food clickable span to add to order
+    const foodSpan = document.createElement("span");
+    foodSpan.textContent = `${foodName} - $${foodPrice}`;
+    foodSpan.onclick = () => {
+      if (!selectedCustomer) {
+        alert("Select a customer first!");
+        return;
+      }
+      const currentOrder = orderTextarea.value.trim();
+      const newLine = `${foodName} - $${foodPrice}`;
+      orderTextarea.value = currentOrder ? currentOrder + "\n" + newLine : newLine;
+    };
+    foodSpan.style.cursor = "pointer";
+    foodSpan.style.flexGrow = "1";
+
+    li.appendChild(foodSpan);
+
+    // Remove food button
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "Remove";
+    removeBtn.className = "remove-food-btn";
+    removeBtn.onclick = async () => {
+      if (confirm(`Remove "${foodName}" from menu?`)) {
+        try {
+          await deleteDoc(docSnap.ref);
+        } catch (e) {
+          alert("Error removing food: " + e.message);
+        }
+      }
+    };
+    li.appendChild(removeBtn);
+
+    foodsList.appendChild(li);
+  });
+}
+
+// Add new food button click
+addFoodBtn.onclick = async () => {
+  const newFood = newFoodNameInput.value.trim();
+  const newPrice = parseFloat(newFoodPriceInput.value);
+  if (!newFood) return alert("Enter a food name");
+  if (isNaN(newPrice) || newPrice < 0) return alert("Enter a valid price");
+
+  try {
+    // Using food name as doc id so names are unique
+    await setDoc(doc(db, "Foods", newFood), { name: newFood, price: newPrice });
+    newFoodNameInput.value = "";
+    newFoodPriceInput.value = "";
+    alert(`Added food: ${newFood} - $${newPrice.toFixed(2)}`);
+  } catch (e) {
+    alert("Failed to add food: " + e.message);
+  }
+};
+</script>
 </body>
 </html>
